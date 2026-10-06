@@ -2,6 +2,8 @@
 
 [![Refresh data and dashboard](https://github.com/ShabibLiaqat/Uk-job-market-analytics/actions/workflows/refresh-dashboard.yml/badge.svg)](https://github.com/ShabibLiaqat/Uk-job-market-analytics/actions/workflows/refresh-dashboard.yml)
 
+**[Open the interactive dashboard](https://uk-job-market-analytics.streamlit.app/)**
+
 A Python and Streamlit portfolio project exploring UK job adverts returned by Adzuna searches for Data Analyst, Business Intelligence Analyst, and MI Analyst roles. The dashboard compares regional coverage, skill mentions, advertised dates, and usable annual salary ranges while making sampling and missing-data limits visible.
 
 ![Latest Streamlit dashboard](Screenshot/dashboard.png)
@@ -55,9 +57,9 @@ python -m playwright install chromium
 python -m src.capture_dashboard
 ```
 
-## Host the interactive dashboard
+## Interactive dashboard hosting
 
-GitHub Actions runs the refresh job; Streamlit Community Cloud hosts the interactive app. In [Streamlit Community Cloud](https://share.streamlit.io/), create an app with:
+The interactive app is hosted at **[uk-job-market-analytics.streamlit.app](https://uk-job-market-analytics.streamlit.app/)**. Visitors can explore the dashboard in their browser. GitHub Actions updates the data, and Streamlit Community Cloud hosts the app using:
 
 | Setting | Value |
 | --- | --- |
@@ -66,7 +68,7 @@ GitHub Actions runs the refresh job; Streamlit Community Cloud hosts the interac
 | Main file | `app.py` |
 | Python | `3.12` |
 
-The hosted app reads the committed CSV, so it does not need the Adzuna API secrets. Community Cloud applies repository updates after deployment. Add its assigned URL to this README when deployed. See [Streamlit deployment documentation](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/deploy).
+The hosted app reads the committed CSV, so it does not need the Adzuna API secrets. Community Cloud applies repository updates after deployment. See [Streamlit deployment documentation](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/deploy) for deployment settings.
 
 ## Data model and interpretation
 

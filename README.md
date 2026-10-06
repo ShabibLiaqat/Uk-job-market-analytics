@@ -1,36 +1,95 @@
-# UK Job Market Analytics Dashboard
+# UK Data Careers Observatory
 
-## 📌 Project Overview
+[![Refresh data and dashboard](https://github.com/ShabibLiaqat/Uk-job-market-analytics/actions/workflows/refresh-dashboard.yml/badge.svg)](https://github.com/ShabibLiaqat/Uk-job-market-analytics/actions/workflows/refresh-dashboard.yml)
 
-This project analyzes the technical hiring landscape in the United Kingdom, focusing on data-centric roles (BI, Data, and MI Analysts). The objective is to identify geographic hiring hotspots, salary parity across technical disciplines, and the specific skill combinations demanded by modern employers.
+A Python and Streamlit portfolio project exploring UK job adverts returned by Adzuna searches for Data Analyst, Business Intelligence Analyst, and MI Analyst roles. The dashboard compares regional coverage, skill mentions, advertised dates, and usable annual salary ranges while making sampling and missing-data limits visible.
 
-## 🏗️ Data Architecture & Pipeline
+![Latest Streamlit dashboard](Screenshot/dashboard.png)
 
-Data is ingested automatically using a custom ETL pipeline, transforming raw web data into a highly structured dimensional model for business intelligence reporting.
+The preview is generated from the committed extract. Its retrieval date is displayed inside the dashboard; it changes after each successful refresh.
 
-* **Extraction:** Python script querying the Adzuna API for live job postings.
-* **Storage:** Data is written to a SQL database for persistent staging.
-* **Visualization:** Power BI connects directly to the SQL backend, processing the data through a Star Schema.
-* **Automation:** Weekly data refreshes scheduled via Windows Task Scheduler executing the Python ingestion script.
+## Automated pipeline
 
-## 🗄️ Data Schema
+Every Monday at **07:17 UTC** (07:17 GMT / 08:17 BST), GitHub Actions:
 
-The semantic model utilizes a standard Star Schema optimized for DAX aggregations:
+1. Collects two API pages per search, covering adverts from the last 30 days.
+2. Deduplicates posting IDs across searches and validates the new extract before replacing the previous one.
+3. Keeps a dated CSV snapshot and rebuilds a SQLite warehouse from all snapshots.
+4. Starts Streamlit and uses Playwright to verify the fresh-data date, check chart rendering, and capture the dashboard.
+5. Commits the latest CSV, dated snapshot, and screenshot only after those steps succeed.
 
-* **Fact Table:** `JOBS` (Contains `employer`, `role`, `posted_date`, `contract_type`, `location`, `salary` metrics, and `posting_id`).
-* **Dimension Tables:** `DimRole`, `DimRegion`, `DimSkill`, `DimSnapshotDate`.
-* **Bridge Table:** `JobSkills` (Resolves the many-to-many relationship between individual job postings and multiple required skills).
+SQLite is a downloadable workflow artifact retained for 14 days rather than a binary committed on every refresh. The dashboard reads the latest CSV; the warehouse preserves observations across snapshots. Rerunning on the same date replaces that day's snapshot.
 
-## 📊 Key Findings
+The workflow also supports **Actions → Refresh data and dashboard → Run workflow**. Empty API results, invalid data, dashboard errors, and screenshot failures stop publication. API keys are only supplied to the collection step, and descriptions are processed in memory for skill tags then discarded.
 
-1. **Geographic Concentration:** London drives the vast majority of hiring volume within the captured dataset.
-2. **Salary Parity:** Advertised compensation remains virtually flat across data disciplines, averaging £52K for BI, Data, and MI Analysts.
-3. **Contract Preferences:** Employers predominantly utilize 'contract' arrangements or leave terms 'Not stated', with 'permanent' roles representing a distinct minority.
+## GitHub setup
 
-## ⚠️ Methodology & Data Limitations
+In **Settings → Secrets and variables → Actions**, add repository secrets named `ADZUNA_APP_ID` and `ADZUNA_APP_KEY`. Never commit `.env` or paste credentials into the workflow. The repository must allow the workflow to write commits to its default branch; branch protection may require a different publication strategy.
 
-To maintain analytical rigor, the following constraints apply to this dataset:
+The schedule runs on the default branch. GitHub may delay scheduled runs, and schedules in public repositories can be disabled after 60 days without repository activity. Inspect the [workflow history](https://github.com/ShabibLiaqat/Uk-job-market-analytics/actions/workflows/refresh-dashboard.yml) to confirm freshness. See [GitHub scheduling documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
 
-* **Algorithmic Estimates:** Salary figures (`salary_is_predicted = True`) are algorithmic estimates provided by the Adzuna API, not direct employer-confirmed payroll data.
-* **Time Context:** The `salary_period` reflects the data capture and platform refresh cadence, not a guaranteed pay frequency.
-* **Sample Scope:** The current dashboard reflects a targeted snapshot of 108 records captured over a specific date range. It serves as an exploratory structural model rather than an exhaustive market census. Multiple postings for the same role in distinct towns by the same employer indicate job-board syndication, not ingestion duplication.
+## Run locally
+
+Requires Python 3.12.
+
+```powershell
+python -m pip install -r requirements.txt
+python -m streamlit run app.py
+```
+
+The app uses `data/processed/jobs.csv` when available and otherwise clearly labels the fictional sample in `data/sample_jobs.csv`.
+
+To collect data locally, copy `.env.example` to `.env`, fill in your Adzuna credentials, and run:
+
+```powershell
+python -m src.collect_adzuna --pages 2 --days 30
+python -m src.validate_extract
+python -m src.build_warehouse
+```
+
+To regenerate the README screenshot:
+
+```powershell
+python -m pip install -r requirements-automation.txt
+python -m playwright install chromium
+python -m src.capture_dashboard
+```
+
+## Host the interactive dashboard
+
+GitHub Actions runs the refresh job; Streamlit Community Cloud hosts the interactive app. In [Streamlit Community Cloud](https://share.streamlit.io/), create an app with:
+
+| Setting | Value |
+| --- | --- |
+| Repository | `ShabibLiaqat/Uk-job-market-analytics` |
+| Branch | `main` |
+| Main file | `app.py` |
+| Python | `3.12` |
+
+The hosted app reads the committed CSV, so it does not need the Adzuna API secrets. Community Cloud applies repository updates after deployment. Add its assigned URL to this README when deployed. See [Streamlit deployment documentation](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/deploy).
+
+## Data model and interpretation
+
+- **Latest extract:** one row per unique source posting ID.
+- **Historical snapshots:** one observation per posting ID and retrieval date; repeated appearances are not new jobs.
+- **Role classification:** title-based, versioned rules; search-family provenance is stored separately.
+- **Skill tags:** dictionary matches in the API's returned description snippet, which is not the full advert.
+- **Salary comparison:** complete annual ranges not marked as predicted by Adzuna. Predicted amounts are excluded.
+- **Coverage:** a bounded search sample, not a census or a representative estimate of the UK labour market. Changes in snapshots measure changes in returned search results.
+
+Source: [The Adzuna API](https://www.adzuna.co.uk/). Estimates are attributed to [Adzuna Jobsworth](https://www.adzuna.co.uk/jobs/salary-predictor.html) within the dashboard. Initial findings are documented with their original date rather than treated as permanently current.
+
+## Supporting portfolio materials
+
+- [Data dictionary](docs/data-dictionary.md)
+- [First live extraction and limitations](docs/initial-extract.md)
+- [Portfolio case study](docs/portfolio-story.md)
+- [Power BI import queries](powerbi/PowerQuery.md), [model design](powerbi/Model.md), and [DAX measures](powerbi/Measures.dax)
+- Original Power BI screenshots remain in `Screenshot/` as supplementary BI work.
+
+## Verification
+
+```powershell
+python -m unittest discover -s tests
+python -m src.validate_extract
+```

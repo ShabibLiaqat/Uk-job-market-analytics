@@ -180,7 +180,7 @@ with left:
     )
     fig = px.area(monthly, x="month", y="adverts", markers=True)
     fig.update_traces(line_color=COLOURS["teal"], fillcolor="rgba(103,226,192,.12)", marker_color=COLOURS["teal"])
-    fig.update_xaxes(tickformat="%b %y")
+    fig.update_xaxes(tickformat="%b %y", dtick="M1")
     st.plotly_chart(chart_layout(fig), use_container_width=True, config={"displayModeBar": False})
 with right:
     st.subheader("Where are roles listed?")
@@ -189,6 +189,7 @@ with right:
     locations = locations.sort_values("adverts", ascending=True)
     fig = px.bar(locations, x="adverts", y="region", orientation="h", text="adverts")
     fig.update_traces(marker_color=COLOURS["blue"], textposition="outside", cliponaxis=False)
+    fig.update_xaxes(range=[0, max(1, locations["adverts"].max() * 1.18)])
     st.plotly_chart(chart_layout(fig), use_container_width=True, config={"displayModeBar": False})
 
 left, right = st.columns([1, 1.45])
@@ -272,5 +273,13 @@ attribution = (
 st.markdown(
     f"<div class='source-note'>SOURCE: {attribution} · {len(data):,} UNIQUE RECORDS · "
     "SKILLS: KEYWORD MATCH · SALARY: SOURCE-REPORTED ANNUAL RANGES ONLY</div>",
+    unsafe_allow_html=True,
+)
+
+# The screenshot job waits for this marker, after all dashboard elements exist.
+retrieved_date = data["retrieved_on"].max().strftime("%Y-%m-%d")
+st.markdown(
+    f'<span id="dashboard-ready" data-synthetic="{str(synthetic).lower()}" '
+    f'data-retrieved="{retrieved_date}" style="display:none"></span>',
     unsafe_allow_html=True,
 )

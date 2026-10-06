@@ -7,6 +7,7 @@ import csv
 import json
 import os
 import time
+import tempfile
 from datetime import date
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -14,6 +15,7 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from src.data_model import CSV_FIELDS, ROLE_SEARCHES, normalise_advert
+from src.validate_extract import validate
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -111,17 +113,34 @@ def main() -> None:
 
     rows = collect(app_id, app_key, args.pages, args.days)
     if not rows:
-        print("Adzuna returned no adverts for this collection. Existing extracts were preserved.")
-        return
+        raise SystemExit("Adzuna returned no adverts. Refresh failed; existing extracts were preserved.")
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
     snapshot = SNAPSHOT_DIR / f"jobs_{date.today().isoformat()}.csv"
-    for path in (OUTPUT, snapshot):
-        with path.open("w", newline="", encoding="utf-8") as handle:
+    # Validate before replacing any usable extract, including same-day reruns.
+    staged = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", newline="", encoding="utf-8", suffix=".csv", dir=OUTPUT.parent, delete=False) as handle:
+            staged = Path(handle.name)
             writer = csv.DictWriter(handle, fieldnames=CSV_FIELDS)
             writer.writeheader()
             writer.writerows(rows)
+        errors, _ = validate(staged)
+        if errors:
+            raise SystemExit("Collected extract failed validation; existing extracts were preserved.")
+        # Use sibling temporary files so each replacement is atomic.
+        with tempfile.NamedTemporaryFile(mode="wb", dir=SNAPSHOT_DIR, delete=False) as handle:
+            staged_snapshot = Path(handle.name)
+            handle.write(staged.read_bytes())
+        try:
+            staged_snapshot.replace(snapshot)
+        finally:
+            staged_snapshot.unlink(missing_ok=True)
+        staged.replace(OUTPUT)
+    finally:
+        if staged is not None:
+            staged.unlink(missing_ok=True)
     print(f"Saved {len(rows)} unique adverts to {OUTPUT.relative_to(ROOT)}")
     print(f"Saved today's snapshot to {snapshot.relative_to(ROOT)}")
     print("Search overlap is recorded separately from title-based role classification.")

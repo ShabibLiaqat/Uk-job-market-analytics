@@ -1,0 +1,135 @@
+Adverts Captured =
+DISTINCTCOUNT ( Jobs[SnapshotKey] )
+
+Unique Adverts =
+DISTINCTCOUNT ( Jobs[posting_id] )
+
+Snapshot Count =
+DISTINCTCOUNT ( Jobs[retrieved_on] )
+
+Ad Observations =
+DISTINCTCOUNT ( Jobs[SnapshotKey] )
+
+Search Family Associations =
+COUNTROWS ( JobSearches )
+
+Adverts in Search Family =
+DISTINCTCOUNT ( JobSearches[SnapshotKey] )
+
+Average Search Families per Advert =
+DIVIDE ( [Search Family Associations], DISTINCTCOUNT ( JobSearches[SnapshotKey] ) )
+
+Role Review Share =
+DIVIDE (
+    CALCULATE ( [Adverts Captured], DimRole[role_family] = "Other / review" ),
+    [Adverts Captured]
+)
+
+New Within Sample =
+VAR SnapshotDate = MAX ( DimSnapshotDate[Date] )
+VAR PreviousDate =
+    CALCULATE (
+        MAX ( Jobs[retrieved_on] ),
+        REMOVEFILTERS ( DimSnapshotDate ),
+        REMOVEFILTERS ( DimPostedDate ),
+        REMOVEFILTERS ( DimRole ),
+        REMOVEFILTERS ( DimRegion ),
+        Jobs[retrieved_on] < SnapshotDate
+    )
+VAR OneRoleTaxonomy =
+    COUNTROWS ( VALUES ( DimRoleTaxonomyVersion[role_taxonomy_version] ) ) = 1
+VAR CurrentAds =
+    CALCULATETABLE (
+        VALUES ( Jobs[posting_id] ),
+        REMOVEFILTERS ( DimSnapshotDate ),
+        DimSnapshotDate[Date] = SnapshotDate
+    )
+VAR PreviousAds =
+    CALCULATETABLE (
+        VALUES ( Jobs[posting_id] ),
+        REMOVEFILTERS ( DimSnapshotDate ),
+        DimSnapshotDate[Date] = PreviousDate
+    )
+RETURN
+    IF ( ISBLANK ( PreviousDate ) || NOT OneRoleTaxonomy, BLANK (), COUNTROWS ( EXCEPT ( CurrentAds, PreviousAds ) ) )
+
+No Longer Returned =
+VAR SnapshotDate = MAX ( DimSnapshotDate[Date] )
+VAR PreviousDate =
+    CALCULATE (
+        MAX ( Jobs[retrieved_on] ),
+        REMOVEFILTERS ( DimSnapshotDate ),
+        REMOVEFILTERS ( DimPostedDate ),
+        REMOVEFILTERS ( DimRole ),
+        REMOVEFILTERS ( DimRegion ),
+        Jobs[retrieved_on] < SnapshotDate
+    )
+VAR OneRoleTaxonomy =
+    COUNTROWS ( VALUES ( DimRoleTaxonomyVersion[role_taxonomy_version] ) ) = 1
+VAR CurrentAds =
+    CALCULATETABLE (
+        VALUES ( Jobs[posting_id] ),
+        REMOVEFILTERS ( DimSnapshotDate ),
+        DimSnapshotDate[Date] = SnapshotDate
+    )
+VAR PreviousAds =
+    CALCULATETABLE (
+        VALUES ( Jobs[posting_id] ),
+        REMOVEFILTERS ( DimSnapshotDate ),
+        DimSnapshotDate[Date] = PreviousDate
+    )
+RETURN
+    IF ( ISBLANK ( PreviousDate ) || NOT OneRoleTaxonomy, BLANK (), COUNTROWS ( EXCEPT ( PreviousAds, CurrentAds ) ) )
+
+Employer Reported Annual Ads =
+CALCULATE (
+    [Adverts Captured],
+    Jobs[salary_is_predicted] = FALSE (),
+    Jobs[salary_period] = "annual",
+    Jobs[salary_min] <> BLANK (),
+    Jobs[salary_max] <> BLANK ()
+)
+
+Employer Reported Annual Share =
+DIVIDE ( [Employer Reported Annual Ads], [Adverts Captured] )
+
+Employer Reported Annual Median Midpoint =
+VAR PayRows =
+    FILTER (
+        Jobs,
+        Jobs[salary_is_predicted] = FALSE ()
+            && Jobs[salary_period] = "annual"
+            && NOT ISBLANK ( Jobs[salary_min] )
+            && NOT ISBLANK ( Jobs[salary_max] )
+    )
+RETURN
+    MEDIANX ( PayRows, DIVIDE ( Jobs[salary_min] + Jobs[salary_max], 2 ) )
+
+Predicted Salary Ads =
+CALCULATE ( [Adverts Captured], Jobs[salary_is_predicted] = TRUE () )
+
+Predicted Salary Share =
+DIVIDE ( [Predicted Salary Ads], [Adverts Captured] )
+
+Skill Adverts =
+DISTINCTCOUNT ( JobSkills[SnapshotKey] )
+
+Skill-tagged Observations =
+CALCULATE ( DISTINCTCOUNT ( JobSkills[SnapshotKey] ), REMOVEFILTERS ( DimSkill ) )
+
+Snippet Skill Coverage =
+DIVIDE ( [Skill-tagged Observations], [Ad Observations] )
+
+Skill Mention Rate =
+DIVIDE ( [Skill Adverts], CALCULATE ( [Ad Observations], REMOVEFILTERS ( DimSkill ) ) )
+
+Classified Region Share =
+VAR ClassifiedAds =
+    CALCULATE (
+        [Adverts Captured],
+        REMOVEFILTERS ( DimRegion ),
+        DimRegion[region] <> "Unclassified"
+    )
+VAR AllAds = CALCULATE ( [Adverts Captured], REMOVEFILTERS ( DimRegion ) )
+RETURN
+    DIVIDE ( ClassifiedAds, AllAds )
